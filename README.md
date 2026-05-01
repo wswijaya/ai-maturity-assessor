@@ -57,17 +57,22 @@ environment variables in `.env` — no code changes required.
 | Anthropic (default) | `anthropic` | `claude-opus-4-7` | Yes — `ANTHROPIC_API_KEY` |
 | OpenAI | `openai` | `gpt-4o` | Yes — `LLM_API_KEY` |
 | Ollama (local) | `ollama` | `llama3.2` | No |
+| Azure OpenAI | `azure` | deployment name | Yes — `LLM_API_KEY` |
 
 ### Configuration
 
 Add these to your `.env` file (all are optional; defaults shown):
 
 ```env
-LLM_PROVIDER=anthropic          # anthropic | openai | ollama
+LLM_PROVIDER=anthropic          # anthropic | openai | ollama | azure
 LLM_MODEL=claude-opus-4-7       # override the provider's default model
 LLM_BASE_URL=                   # custom endpoint; required for ollama
-LLM_API_KEY=                    # API key for openai; leave blank for ollama
+LLM_API_KEY=                    # API key for openai or azure; leave blank for ollama
 ANTHROPIC_API_KEY=your_key_here # used when LLM_PROVIDER=anthropic
+
+# Azure OpenAI (only required when LLM_PROVIDER=azure)
+AZURE_OPENAI_ENDPOINT=https://<resource>.openai.azure.com/
+AZURE_OPENAI_API_VERSION=2024-02-01
 ```
 
 ### Using Ollama (local LLM, no API key needed)
@@ -105,6 +110,28 @@ LLM_PROVIDER=openai
 LLM_MODEL=gpt-4o
 LLM_API_KEY=sk-...
 ```
+
+### Using Azure OpenAI
+
+1. Deploy a model in your Azure OpenAI resource (e.g. a `gpt-4o` deployment named `my-gpt4o`).
+
+2. Update your `.env`:
+
+```env
+LLM_PROVIDER=azure
+LLM_MODEL=my-gpt4o                                   # your deployment name
+LLM_API_KEY=<your-azure-api-key>
+AZURE_OPENAI_ENDPOINT=https://<resource>.openai.azure.com/
+AZURE_OPENAI_API_VERSION=2024-02-01                  # or a newer stable version
+```
+
+3. Run as normal:
+
+```bash
+python3 src/cli.py
+```
+
+**Note:** `LLM_MODEL` must match the **deployment name** in Azure, not the underlying model name (e.g. `my-gpt4o`, not `gpt-4o`).
 
 ---
 
@@ -205,6 +232,7 @@ tool without consuming API credits.
 │   │   ├── base.py                 # LLMClient ABC — complete() + complete_structured()
 │   │   ├── anthropic_client.py     # Anthropic SDK (prompt caching, messages.parse)
 │   │   ├── openai_compatible_client.py  # OpenAI SDK — covers OpenAI, Ollama, LM Studio
+│   │   ├── azure_openai_client.py  # Azure OpenAI — thin subclass of OpenAICompatibleClient
 │   │   └── factory.py              # create_llm_client() — reads LLM_PROVIDER from env
 │   ├── agent/
 │   │   ├── interviewer.py          # Conversational interview loop

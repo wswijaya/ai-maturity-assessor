@@ -2,10 +2,12 @@
 Factory for creating LLMClient instances from environment configuration.
 
 Environment variables (all optional):
-  LLM_PROVIDER   — anthropic | openai | ollama   (default: anthropic)
-  LLM_MODEL      — model name for the chosen provider
-  LLM_BASE_URL   — API base URL (required for ollama if non-default port/host)
-  LLM_API_KEY    — API key; anthropic provider also accepts ANTHROPIC_API_KEY
+  LLM_PROVIDER             — anthropic | openai | ollama | azure  (default: anthropic)
+  LLM_MODEL                — model/deployment name for the chosen provider
+  LLM_BASE_URL             — API base URL (required for ollama if non-default port/host)
+  LLM_API_KEY              — API key; anthropic provider also accepts ANTHROPIC_API_KEY
+  AZURE_OPENAI_ENDPOINT    — required when LLM_PROVIDER=azure
+  AZURE_OPENAI_API_VERSION — Azure API version (default: 2024-02-01)
 
 Adding a new provider:
   1. Create src/llm/<name>_client.py implementing LLMClient.
@@ -23,6 +25,7 @@ _DEFAULTS: dict[str, dict] = {
     "anthropic": {"model": "claude-opus-4-7"},
     "openai":    {"model": "gpt-4o",   "base_url": "https://api.openai.com/v1"},
     "ollama":    {"model": "llama3.2", "base_url": "http://localhost:11434/v1"},
+    "azure":     {"model": "gpt-4o",   "api_version": "2024-02-01"},
 }
 
 _VALID_PROVIDERS = tuple(_DEFAULTS)
@@ -61,4 +64,24 @@ def create_llm_client(
             model=model or defaults["model"],
             base_url=base_url or defaults["base_url"],
             api_key=api_key,
+        )
+
+    if provider == "azure":
+        from src.llm.azure_openai_client import AzureOpenAIClient
+        endpoint = os.getenv("AZURE_OPENAI_ENDPOINT") or base_url
+        if not endpoint:
+            raise ValueError(
+                "AZURE_OPENAI_ENDPOINT is required when LLM_PROVIDER=azure. "
+                "Set it to your resource URL, e.g. https://<resource>.openai.azure.com/"
+            )
+        if not api_key:
+            raise ValueError(
+                "LLM_API_KEY is required when LLM_PROVIDER=azure."
+            )
+        api_version = os.getenv("AZURE_OPENAI_API_VERSION") or defaults["api_version"]
+        return AzureOpenAIClient(
+            model=model or defaults["model"],
+            azure_endpoint=endpoint,
+            api_key=api_key,
+            api_version=api_version,
         )
