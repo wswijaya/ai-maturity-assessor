@@ -43,7 +43,7 @@ class OpenAICompatibleClient(LLMClient):
         self,
         messages: list[dict],
         system: str,
-        max_tokens: int = 1024,
+        max_tokens: int = 4096,
     ) -> str:
         full_messages = [{"role": "system", "content": system}, *messages]
         try:
@@ -62,7 +62,14 @@ class OpenAICompatibleClient(LLMClient):
                 f"Cannot connect to LLM server at {self._client.base_url}. "
                 f"For Ollama, ensure it is running: ollama serve"
             )
-        return response.choices[0].message.content
+        content = response.choices[0].message.content
+        if content is None:
+            raise RuntimeError(
+                f"Model '{self._model}' returned null content. "
+                "This usually means a thinking/reasoning model exhausted max_tokens "
+                "before generating a response. Try increasing max_tokens."
+            )
+        return content
 
     def complete_structured(
         self,
@@ -87,7 +94,10 @@ class OpenAICompatibleClient(LLMClient):
                     },
                 },
             )
-            data = json.loads(response.choices[0].message.content)
+            raw = response.choices[0].message.content
+            if raw is None:
+                raise ValueError("Model returned null content.")
+            data = json.loads(raw)
             return response_model.model_validate(data)
         except (NotFoundError, APIConnectionError):
             raise
