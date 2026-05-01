@@ -1,7 +1,6 @@
 # AI Maturity Assessor
 
-A stateful CLI agent that conducts structured stakeholder interviews based on the
-**Gartner AI Maturity Model**, scores responses across 6 dimensions, and produces
+A stateful CLI agent that conducts structured stakeholder interviews, scores responses across 6 dimensions, and produces
 a Markdown narrative report.
 
 ---
@@ -10,7 +9,7 @@ a Markdown narrative report.
 
 1. The agent interviews you across **6 dimensions**: Strategy & Vision, Data & Infrastructure,
    Talent & Culture, Governance & Risk, Use Case Portfolio, and Technology & Tooling.
-2. Each dimension is scored 1–5 against the Gartner maturity levels (Aware → Transformational).
+2. Each dimension is scored 1–5 against the AI maturity levels (Aware → Transformational).
 3. After all 6 dimensions, the LLM generates a narrative report with an executive summary,
    dimension assessments, prioritised recommendations, and 30/60/90-day next steps.
 4. Reports are saved to `assessments/<org>_<session_id>.md` with a companion JSON file.
@@ -52,12 +51,12 @@ environment variables in `.env` — no code changes required.
 
 ### Supported providers
 
-| Provider | `LLM_PROVIDER` | Default model | Requires API key |
-|---|---|---|---|
-| Anthropic (default) | `anthropic` | `claude-opus-4-7` | Yes — `ANTHROPIC_API_KEY` |
-| OpenAI | `openai` | `gpt-4o` | Yes — `LLM_API_KEY` |
-| Ollama (local) | `ollama` | `llama3.2` | No |
-| Azure OpenAI | `azure` | deployment name | Yes — `LLM_API_KEY` |
+| Provider            | `LLM_PROVIDER` | Default model     | Requires API key          |
+| ------------------- | -------------- | ----------------- | ------------------------- |
+| Anthropic (default) | `anthropic`    | `claude-opus-4-7` | Yes — `ANTHROPIC_API_KEY` |
+| OpenAI              | `openai`       | `gpt-4o`          | Yes — `LLM_API_KEY`       |
+| Ollama (local)      | `ollama`       | `llama3.2`        | No                        |
+| Azure OpenAI        | `azure`        | deployment name   | Yes — `LLM_API_KEY`       |
 
 ### Configuration
 
@@ -253,10 +252,10 @@ tool without consuming API credits.
 
 ## Maturity levels
 
-| Level | Label | Characteristics |
-|---|---|---|
-| 1 | **Aware** | Ad hoc AI curiosity, no strategy, isolated experiments |
-| 2 | **Active** | Pilots underway, exec interest but no governance, siloed |
-| 3 | **Operational** | Repeatable processes, MLOps emerging, some ROI evidence |
-| 4 | **Systematic** | Enterprise-wide AI strategy, governance in place, scaled use cases |
-| 5 | **Transformational** | AI embedded in business model, continuous learning culture |
+| Level | Label                | Characteristics                                                    |
+| ----- | -------------------- | ------------------------------------------------------------------ |
+| 1     | **Aware**            | Ad hoc AI curiosity, no strategy, isolated experiments             |
+| 2     | **Active**           | Pilots underway, exec interest but no governance, siloed           |
+| 3     | **Operational**      | Repeatable processes, MLOps emerging, some ROI evidence            |
+| 4     | **Systematic**       | Enterprise-wide AI strategy, governance in place, scaled use cases |
+| 5     | **Transformational** | AI embedded in business model, continuous learning culture         |
