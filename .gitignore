@@ -21,6 +21,7 @@ assessments/
 
 # Claude Code local settings
 .claude/
+CLAUDE.local.md
 
 # macOS
 .DS_Store

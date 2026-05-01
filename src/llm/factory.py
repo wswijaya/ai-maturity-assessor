@@ -79,10 +79,8 @@ def create_llm_client(
                 "LLM_API_KEY is required when LLM_PROVIDER=azure."
             )
         deployment = model or defaults["model"]
-        api_version = os.getenv("AZURE_OPENAI_API_VERSION", "2024-02-01")
         _client = OpenAI(
-            base_url=f"{endpoint.rstrip('/')}/openai/deployments/{deployment}",
-            api_key=api_key,
-            default_query={"api-version": api_version},
+            base_url=endpoint,
+            api_key=api_key
         )
         return OpenAICompatibleClient(model=deployment, client=_client)
