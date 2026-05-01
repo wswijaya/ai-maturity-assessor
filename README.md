@@ -72,7 +72,6 @@ ANTHROPIC_API_KEY=your_key_here # used when LLM_PROVIDER=anthropic
 
 # Azure OpenAI (only required when LLM_PROVIDER=azure)
 AZURE_OPENAI_ENDPOINT=https://<resource>.openai.azure.com/
-AZURE_OPENAI_API_VERSION=2024-02-01
 ```
 
 ### Using Ollama (local LLM, no API key needed)
@@ -122,7 +121,6 @@ LLM_PROVIDER=azure
 LLM_MODEL=my-gpt4o                                   # your deployment name
 LLM_API_KEY=<your-azure-api-key>
 AZURE_OPENAI_ENDPOINT=https://<resource>.openai.azure.com/
-AZURE_OPENAI_API_VERSION=2024-02-01                  # or a newer stable version
 ```
 
 3. Run as normal:
