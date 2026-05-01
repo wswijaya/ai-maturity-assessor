@@ -11,7 +11,7 @@ a Markdown narrative report.
 1. The agent interviews you across **6 dimensions**: Strategy & Vision, Data & Infrastructure,
    Talent & Culture, Governance & Risk, Use Case Portfolio, and Technology & Tooling.
 2. Each dimension is scored 1–5 against the Gartner maturity levels (Aware → Transformational).
-3. After all 6 dimensions, Claude generates a narrative report with an executive summary,
+3. After all 6 dimensions, the LLM generates a narrative report with an executive summary,
    dimension assessments, prioritised recommendations, and 30/60/90-day next steps.
 4. Reports are saved to `assessments/<org>_<session_id>.md` with a companion JSON file.
 
@@ -21,7 +21,7 @@ a Markdown narrative report.
 
 - Python 3.11+
 - zsh (for `setup.sh`)
-- An [Anthropic API key](https://console.anthropic.com/)
+- An API key for your chosen LLM provider (not required for Ollama)
 
 ---
 
@@ -42,6 +42,69 @@ current shell session. The script will:
 
 For subsequent sessions, re-run `source setup.sh` to restore `PYTHONPATH`, or add
 `export PYTHONPATH=/path/to/ai-maturity-assessor` to your shell profile.
+
+---
+
+## LLM providers
+
+The tool uses a provider-agnostic `LLMClient` interface. Switch providers by setting
+environment variables in `.env` — no code changes required.
+
+### Supported providers
+
+| Provider | `LLM_PROVIDER` | Default model | Requires API key |
+|---|---|---|---|
+| Anthropic (default) | `anthropic` | `claude-opus-4-7` | Yes — `ANTHROPIC_API_KEY` |
+| OpenAI | `openai` | `gpt-4o` | Yes — `LLM_API_KEY` |
+| Ollama (local) | `ollama` | `llama3.2` | No |
+
+### Configuration
+
+Add these to your `.env` file (all are optional; defaults shown):
+
+```env
+LLM_PROVIDER=anthropic          # anthropic | openai | ollama
+LLM_MODEL=claude-opus-4-7       # override the provider's default model
+LLM_BASE_URL=                   # custom endpoint; required for ollama
+LLM_API_KEY=                    # API key for openai; leave blank for ollama
+ANTHROPIC_API_KEY=your_key_here # used when LLM_PROVIDER=anthropic
+```
+
+### Using Ollama (local LLM, no API key needed)
+
+1. Install Ollama from [ollama.com](https://ollama.com) and pull a model:
+
+```bash
+ollama pull llama3.2
+```
+
+2. Update your `.env`:
+
+```env
+LLM_PROVIDER=ollama
+LLM_MODEL=llama3.2
+LLM_BASE_URL=http://localhost:11434/v1
+```
+
+3. Run as normal — no API key required:
+
+```bash
+python3 src/cli.py
+```
+
+**Note on local model quality:** Interview probing and scoring work well on most
+models 8B+. Report narrative generation (the `complete_structured` call) relies on
+the model following a JSON schema precisely — larger models (30B+) are recommended
+for consistent report output. Smaller models may produce malformed JSON and trigger
+the fallback prompt-injection path, which is less reliable.
+
+### Using OpenAI
+
+```env
+LLM_PROVIDER=openai
+LLM_MODEL=gpt-4o
+LLM_API_KEY=sk-...
+```
 
 ---
 
@@ -138,20 +201,25 @@ tool without consuming API credits.
 ```
 .
 ├── src/
+│   ├── llm/
+│   │   ├── base.py                 # LLMClient ABC — complete() + complete_structured()
+│   │   ├── anthropic_client.py     # Anthropic SDK (prompt caching, messages.parse)
+│   │   ├── openai_compatible_client.py  # OpenAI SDK — covers OpenAI, Ollama, LM Studio
+│   │   └── factory.py              # create_llm_client() — reads LLM_PROVIDER from env
 │   ├── agent/
-│   │   ├── interviewer.py      # Conversational interview loop
-│   │   ├── prompts.py          # System prompts, opening questions, probe banks
-│   │   └── scorer.py           # JSON score parsing, validation, dim.close()
+│   │   ├── interviewer.py          # Conversational interview loop
+│   │   ├── prompts.py              # System prompts, opening questions, probe banks
+│   │   └── scorer.py               # JSON score parsing, validation, dim.close()
 │   ├── models/
-│   │   └── assessment.py       # Pydantic state models (single source of truth)
+│   │   └── assessment.py           # Pydantic state models (single source of truth)
 │   ├── output/
-│   │   └── report_generator.py # Claude-generated narrative + session-state assembly
-│   └── cli.py                  # Entry point, --dry-run, rich formatting
+│   │   └── report_generator.py     # LLM-generated narrative + session-state assembly
+│   └── cli.py                      # Entry point, --dry-run, rich formatting
 ├── tests/
 │   └── test_scorer.py
-├── assessments/                # Generated reports (git-ignored)
-├── .env                        # Your API key (git-ignored)
-├── .env.example                # Template
+├── assessments/                    # Generated reports (git-ignored)
+├── .env                            # Your config and API keys (git-ignored)
+├── .env.example                    # Template with all supported variables
 ├── requirements.txt
 └── setup.sh
 ```

@@ -3,8 +3,8 @@ Scoring module for the AI Maturity Assessment.
 
 Public surface:
   parse_score_json(raw)      — strip fences, parse JSON, validate schema, return dict.
-  score_dimension(dim, ...)  — call the Anthropic SDK in scoring mode, with one retry
-                               on malformed JSON, then close the dimension.
+  score_dimension(dim, ...)  — call the LLM in scoring mode, with one retry on
+                               malformed JSON, then close the dimension.
 """
 
 from __future__ import annotations
@@ -12,11 +12,8 @@ from __future__ import annotations
 import json
 import re
 
-import anthropic
-
+from src.llm.base import LLMClient
 from src.models.assessment import DimensionAssessment
-
-DEFAULT_MODEL = "claude-opus-4-7"
 
 
 def parse_score_json(raw: str) -> dict:
@@ -80,15 +77,13 @@ def parse_score_json(raw: str) -> dict:
 def score_dimension(
     dim: DimensionAssessment,
     messages: list[dict],
-    client: anthropic.Anthropic,
-    model: str,
-    system: str | list[dict],
+    client: LLMClient,
+    system: str,
 ) -> None:
     """
     Drive the scoring exchange for a single dimension.
 
-    Sends the scoring cue, calls the Anthropic SDK with the accumulated
-    conversation, and parses the JSON score block.
+    Sends the scoring cue, calls the LLM, and parses the JSON score block.
 
     Retry policy:
       - json.JSONDecodeError (malformed response)  → retry once.
@@ -104,7 +99,7 @@ def score_dimension(
     )
     messages.append({"role": "user", "content": scoring_cue})
 
-    raw = _call_api(client, model, system, messages)
+    raw = client.complete(messages, system)
     messages.append({"role": "assistant", "content": raw})
 
     try:
@@ -115,7 +110,7 @@ def score_dimension(
             "Respond with ONLY the JSON score block — no other text."
         )
         messages.append({"role": "user", "content": retry_cue})
-        raw = _call_api(client, model, system, messages)
+        raw = client.complete(messages, system)
         messages.append({"role": "assistant", "content": raw})
         try:
             score_data = parse_score_json(raw)
@@ -130,18 +125,3 @@ def score_dimension(
         gaps=score_data.get("gaps", []),
         evidence=score_data["evidence"],
     )
-
-
-def _call_api(
-    client: anthropic.Anthropic,
-    model: str,
-    system: str | list[dict],
-    messages: list[dict],
-) -> str:
-    response = client.messages.create(
-        model=model,
-        max_tokens=1024,
-        system=system,
-        messages=messages,
-    )
-    return response.content[0].text

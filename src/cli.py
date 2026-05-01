@@ -23,6 +23,7 @@ from rich.text import Text
 
 from src.agent.interviewer import Interviewer
 from src.agent.prompts import DIMENSION_TRANSITION, OPENING_QUESTIONS
+from src.llm.factory import create_llm_client
 from src.models.assessment import (
     AssessmentSession,
     DimensionID,
@@ -386,11 +387,12 @@ def main() -> None:
         console.print()
         console.print(Rule("[bold blue]Interview[/bold blue]", style="blue"))
 
-        interviewer = Interviewer(session=session)
+        llm = create_llm_client()
+        interviewer = Interviewer(session=session, client=llm)
         interviewer.run(get_input=_get_input, show_output=_show_output)
 
-        console.print("  [dim]Generating narrative report via Claude…[/dim]")
-        report_path = generate_report(session)
+        console.print("  [dim]Generating narrative report…[/dim]")
+        report_path = generate_report(session, client=llm)
 
         _print_score_summary(session)
 

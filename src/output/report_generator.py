@@ -2,30 +2,29 @@
 Report generator for the AI Maturity Assessment.
 
 Architecture:
-- Claude generates ONLY narrative prose (executive summary, per-dimension assessments,
-  recommendations, next steps). It receives scores/evidence as read-only context.
-- All factual data (scores, evidence, gaps) is assembled directly from AssessmentSession.
-  Claude cannot write to those fields — hallucination is structurally impossible.
+- The LLM generates ONLY narrative prose (executive summary, per-dimension
+  assessments, recommendations, next steps). It receives scores/evidence as
+  read-only context via the briefing.
+- All factual data (scores, evidence, gaps) is assembled directly from
+  AssessmentSession. The LLM cannot write to those fields — hallucination
+  is structurally impossible.
 """
 
 from __future__ import annotations
 
-import json
-import re
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
-import anthropic
 from pydantic import BaseModel, Field
 
+from src.llm.base import LLMClient
+from src.llm.factory import create_llm_client
 from src.models.assessment import AssessmentSession, DimensionID, MaturityLevel
-
-DEFAULT_MODEL = "claude-opus-4-7"
 
 
 # ---------------------------------------------------------------------------
-# Pydantic schema for Claude's narrative output — prose ONLY, no scores
+# Pydantic schema for LLM narrative output — prose ONLY, no scores
 # ---------------------------------------------------------------------------
 
 class _DimNarrative(BaseModel):
@@ -84,7 +83,7 @@ Respond with a single JSON object matching the schema you will be given. No othe
 
 
 # ---------------------------------------------------------------------------
-# Briefing builder — the factual context given to Claude
+# Briefing builder — the factual context given to the LLM
 # ---------------------------------------------------------------------------
 
 def _build_briefing(session: AssessmentSession) -> str:
@@ -117,7 +116,6 @@ def _build_briefing(session: AssessmentSession) -> str:
                 lines.append(f"    - {gap}")
         if dim.score_rationale:
             lines.append(f"  Rationale: {dim.score_rationale}")
-        # Include a condensed transcript excerpt for narrative context
         interviewee_turns = [t for t in dim.transcript if t.role == "interviewee"]
         if interviewee_turns:
             lines.append("  Key interviewee statements (excerpts):")
@@ -129,49 +127,24 @@ def _build_briefing(session: AssessmentSession) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Claude call — structured output with fallback
+# LLM call — delegated to client.complete_structured()
 # ---------------------------------------------------------------------------
 
 def _generate_narratives(
     session: AssessmentSession,
-    client: anthropic.Anthropic,
-    model: str,
+    client: LLMClient,
 ) -> _ReportNarratives:
     briefing = _build_briefing(session)
     user_message = (
-        f"Please write the narrative report sections for this assessment.\n\n"
+        "Please write the narrative report sections for this assessment.\n\n"
         f"=== ASSESSMENT BRIEFING ===\n{briefing}\n=== END BRIEFING ==="
     )
-
-    # Primary path: structured output via messages.parse
-    try:
-        response = client.messages.parse(
-            model=model,
-            max_tokens=4096,
-            system=_NARRATIVE_SYSTEM,
-            messages=[{"role": "user", "content": user_message}],
-            output_format=_ReportNarratives,
-        )
-        return response.parsed
-    except (AttributeError, Exception):
-        pass
-
-    # Fallback: plain create + manual JSON extraction
-    schema_hint = json.dumps(_ReportNarratives.model_json_schema(), indent=2)
-    fallback_message = (
-        f"{user_message}\n\n"
-        f"Respond with a single JSON object matching this schema:\n{schema_hint}"
-    )
-    raw = client.messages.create(
-        model=model,
-        max_tokens=4096,
+    return client.complete_structured(
+        messages=[{"role": "user", "content": user_message}],
         system=_NARRATIVE_SYSTEM,
-        messages=[{"role": "user", "content": fallback_message}],
-    ).content[0].text
-
-    clean = re.sub(r"```(?:json)?\s*|\s*```", "", raw).strip()
-    data = json.loads(clean)
-    return _ReportNarratives.model_validate(data)
+        response_model=_ReportNarratives,
+        max_tokens=4096,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -195,7 +168,6 @@ def _assemble_markdown(
     lines: list[str] = []
     w = lines.append
 
-    # Header
     w("# AI Maturity Assessment Report")
     w(f"## Organisation: {org_name}")
     w(f"## Date: {date_str}")
@@ -204,13 +176,11 @@ def _assemble_markdown(
     w("---")
     w("")
 
-    # Executive summary — Claude-generated prose
     w("## Executive Summary")
     w("")
     w(narratives.executive_summary)
     w("")
 
-    # Overall level — from session state
     if session.overall_level:
         level = session.overall_level
         w(
@@ -225,7 +195,6 @@ def _assemble_markdown(
     w("---")
     w("")
 
-    # Dimension scores — facts from session, narrative from Claude
     w("## Dimension Scores")
     w("")
     for i, (dim_id, dim) in enumerate(session.dimensions.items(), start=1):
@@ -233,20 +202,17 @@ def _assemble_markdown(
         w(f"### {i}. {dim.label} — Score: {score_str}")
         w("")
 
-        # Evidence — from session only
         if dim.evidence:
             w("**Evidence:**")
             for ev in dim.evidence:
                 w(f"- {ev}")
             w("")
 
-        # Assessment narrative — from Claude
         narrative = _lookup_narrative(narratives, dim_id)
         if narrative:
             w(f"**Assessment:** {narrative}")
             w("")
 
-        # Gaps — from session only
         if dim.gaps:
             w("**Gaps:**")
             for gap in dim.gaps:
@@ -256,14 +222,12 @@ def _assemble_markdown(
     w("---")
     w("")
 
-    # Recommendations — Claude-generated
     w("## Key Recommendations")
     w("")
     for i, rec in enumerate(narratives.recommendations, start=1):
         w(f"{i}. {rec}")
     w("")
 
-    # Next steps — Claude-generated
     w("## Next Steps")
     w("")
     w("### 30-Day Actions")
@@ -288,15 +252,13 @@ def _assemble_markdown(
 
 def generate_report(
     session: AssessmentSession,
-    client: Optional[anthropic.Anthropic] = None,
-    model: str = DEFAULT_MODEL,
+    client: Optional[LLMClient] = None,
 ) -> Path:
     """
     Generate a full Markdown report for a completed AssessmentSession.
 
     Scores, evidence, and gaps are pulled directly from session state.
-    Executive summary, dimension narratives, recommendations, and next steps
-    are generated by a Claude API call.
+    Narrative prose is generated by the configured LLM provider.
 
     Returns the path to the saved Markdown file.
     """
@@ -306,8 +268,8 @@ def generate_report(
         incomplete = [d.label for d in session.dimensions.values() if not d.is_complete]
         raise ValueError(f"Dimensions not yet scored: {', '.join(incomplete)}")
 
-    _client = client or anthropic.Anthropic()
-    narratives = _generate_narratives(session, _client, model)
+    _client = client or create_llm_client()
+    narratives = _generate_narratives(session, _client)
 
     date_str = datetime.utcnow().strftime("%Y-%m-%d")
     ctx = session.org_context

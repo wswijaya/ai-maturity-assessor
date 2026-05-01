@@ -6,10 +6,10 @@ Run with: python3 -m pytest tests/test_scorer.py -v
 import json
 from unittest.mock import Mock
 
-import anthropic
 import pytest
 
 from src.agent.scorer import score_dimension
+from src.llm.base import LLMClient
 from src.models.assessment import DimensionAssessment, DimensionID
 
 
@@ -22,18 +22,16 @@ def active_dim() -> DimensionAssessment:
     )
 
 
-def _make_client(response_text: str) -> anthropic.Anthropic:
-    """Return a mock Anthropic client whose messages.create returns response_text."""
-    client = Mock(spec=anthropic.Anthropic)
-    client.messages.create.return_value = Mock(
-        content=[Mock(text=response_text)]
-    )
+def _make_client(response_text: str) -> LLMClient:
+    """Return a mock LLMClient whose complete() returns response_text."""
+    client = Mock(spec=LLMClient)
+    client.complete.return_value = response_text
     return client
 
 
 def test_empty_evidence_raises_before_close(active_dim):
     """
-    When the API returns a valid JSON block with an empty evidence list,
+    When the LLM returns a valid JSON block with an empty evidence list,
     score_dimension must raise ValueError and must not call dim.close()
     (verified by checking dim.is_complete remains False).
     """
@@ -46,6 +44,6 @@ def test_empty_evidence_raises_before_close(active_dim):
     client = _make_client(response)
 
     with pytest.raises(ValueError, match="[Ee]vidence"):
-        score_dimension(active_dim, [], client, "claude-opus-4-7", "system")
+        score_dimension(active_dim, [], client, "system")
 
     assert not active_dim.is_complete
