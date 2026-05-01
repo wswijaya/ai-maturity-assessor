@@ -29,10 +29,12 @@ class OpenAICompatibleClient(LLMClient):
         model: str,
         base_url: str | None = None,
         api_key: str | None = None,
+        client: OpenAI | None = None,
     ) -> None:
         self._model = model
+        # Accept a pre-built client (e.g. constructed by factory for Azure).
         # OpenAI SDK requires a non-empty api_key even for local servers.
-        self._client = OpenAI(
+        self._client = client or OpenAI(
             base_url=base_url,
             api_key=api_key or "no-key-required",
         )

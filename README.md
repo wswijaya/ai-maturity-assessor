@@ -231,8 +231,7 @@ tool without consuming API credits.
 │   ├── llm/
 │   │   ├── base.py                 # LLMClient ABC — complete() + complete_structured()
 │   │   ├── anthropic_client.py     # Anthropic SDK (prompt caching, messages.parse)
-│   │   ├── openai_compatible_client.py  # OpenAI SDK — covers OpenAI, Ollama, LM Studio
-│   │   ├── azure_openai_client.py  # Azure OpenAI — thin subclass of OpenAICompatibleClient
+│   │   ├── openai_compatible_client.py  # OpenAI SDK — covers OpenAI, Ollama, LM Studio, Azure
 │   │   └── factory.py              # create_llm_client() — reads LLM_PROVIDER from env
 │   ├── agent/
 │   │   ├── interviewer.py          # Conversational interview loop

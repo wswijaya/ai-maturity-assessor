@@ -7,7 +7,6 @@ Environment variables (all optional):
   LLM_BASE_URL             — API base URL (required for ollama if non-default port/host)
   LLM_API_KEY              — API key; anthropic provider also accepts ANTHROPIC_API_KEY
   AZURE_OPENAI_ENDPOINT    — required when LLM_PROVIDER=azure
-  AZURE_OPENAI_API_VERSION — Azure API version (default: 2024-02-01)
 
 Adding a new provider:
   1. Create src/llm/<name>_client.py implementing LLMClient.
@@ -25,7 +24,7 @@ _DEFAULTS: dict[str, dict] = {
     "anthropic": {"model": "claude-opus-4-7"},
     "openai":    {"model": "gpt-4o",   "base_url": "https://api.openai.com/v1"},
     "ollama":    {"model": "llama3.2", "base_url": "http://localhost:11434/v1"},
-    "azure":     {"model": "gpt-4o",   "api_version": "2024-02-01"},
+    "azure":     {"model": "gpt-4o"},
 }
 
 _VALID_PROVIDERS = tuple(_DEFAULTS)
@@ -35,7 +34,7 @@ def create_llm_client(
     provider: str | None = None,
     model: str | None = None,
     base_url: str | None = None,
-    api_key: str | None = None,
+    api_key: str | None = None
 ) -> LLMClient:
     """Return an LLMClient for the configured provider."""
     provider = (provider or os.getenv("LLM_PROVIDER", "anthropic")).lower()
@@ -67,7 +66,8 @@ def create_llm_client(
         )
 
     if provider == "azure":
-        from src.llm.azure_openai_client import AzureOpenAIClient
+        from openai import OpenAI
+        from src.llm.openai_compatible_client import OpenAICompatibleClient
         endpoint = os.getenv("AZURE_OPENAI_ENDPOINT") or base_url
         if not endpoint:
             raise ValueError(
@@ -78,10 +78,11 @@ def create_llm_client(
             raise ValueError(
                 "LLM_API_KEY is required when LLM_PROVIDER=azure."
             )
-        api_version = os.getenv("AZURE_OPENAI_API_VERSION") or defaults["api_version"]
-        return AzureOpenAIClient(
-            model=model or defaults["model"],
-            azure_endpoint=endpoint,
+        deployment = model or defaults["model"]
+        api_version = os.getenv("AZURE_OPENAI_API_VERSION", "2024-02-01")
+        _client = OpenAI(
+            base_url=f"{endpoint.rstrip('/')}/openai/deployments/{deployment}",
             api_key=api_key,
-            api_version=api_version,
+            default_query={"api-version": api_version},
         )
+        return OpenAICompatibleClient(model=deployment, client=_client)
