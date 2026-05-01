@@ -1,0 +1,26 @@
+# Environment — never commit real keys
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+dist/
+build/
+.venv/
+venv/
+
+# Pytest
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Generated assessment output
+assessments/
+
+# Claude Code local settings
+.claude/
+
+# macOS
+.DS_Store
