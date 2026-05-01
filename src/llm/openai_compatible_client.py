@@ -16,7 +16,7 @@ from __future__ import annotations
 import json
 from typing import Type
 
-from openai import OpenAI
+from openai import APIConnectionError, NotFoundError, OpenAI
 from pydantic import BaseModel
 
 from src.llm.base import LLMClient
@@ -44,11 +44,22 @@ class OpenAICompatibleClient(LLMClient):
         max_tokens: int = 1024,
     ) -> str:
         full_messages = [{"role": "system", "content": system}, *messages]
-        response = self._client.chat.completions.create(
-            model=self._model,
-            messages=full_messages,
-            max_tokens=max_tokens,
-        )
+        try:
+            response = self._client.chat.completions.create(
+                model=self._model,
+                messages=full_messages,
+                max_tokens=max_tokens,
+            )
+        except NotFoundError:
+            raise RuntimeError(
+                f"Model '{self._model}' not found at {self._client.base_url}. "
+                f"For Ollama, run: ollama pull {self._model}"
+            )
+        except APIConnectionError:
+            raise RuntimeError(
+                f"Cannot connect to LLM server at {self._client.base_url}. "
+                f"For Ollama, ensure it is running: ollama serve"
+            )
         return response.choices[0].message.content
 
     def complete_structured(
@@ -76,5 +87,7 @@ class OpenAICompatibleClient(LLMClient):
             )
             data = json.loads(response.choices[0].message.content)
             return response_model.model_validate(data)
+        except (NotFoundError, APIConnectionError):
+            raise
         except Exception:
             return super().complete_structured(messages, system, response_model, max_tokens)
